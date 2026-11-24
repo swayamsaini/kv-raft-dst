@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package kvraft.v1;
+
+option go_package = "github.com/swayamsaini/kv-raft-dst/proto;kvraftpb";
+
+// Client-facing Key-Value API
+service KVService {
+  rpc Put(PutRequest) returns (PutResponse);
+  rpc Get(GetRequest) returns (GetResponse);
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+}
+
+// Peer-to-peer Raft Consensus RPCs
+service RaftService {
+  rpc RequestVote(RequestVoteRequest) returns (RequestVoteResponse);
+  rpc AppendEntries(AppendEntriesRequest) returns (AppendEntriesResponse);
+  rpc InstallSnapshot(stream SnapshotChunk) returns (InstallSnapshotResponse);
+}
+
+message PutRequest {
+  string key = 1;
+  bytes value = 2;
+  uint64 client_id = 3;
+  uint64 seq_num = 4;
+}
+
+message PutResponse {
+  bool ok = 1;
+  int32 leader_hint = 2;
+}
+
+message GetRequest {
+  string key = 1;
+}
+
+message GetResponse {
+  bool found = 1;
+  bytes value = 2;
+  int32 leader_hint = 3;
+}
+
+message DeleteRequest {
+  string key = 1;
+  uint64 client_id = 2;
+  uint64 seq_num = 3;
+}
+
+message DeleteResponse {
+  bool ok = 1;
+  int32 leader_hint = 2;
+}
+
+message LogEntry {
+  uint64 term = 1;
+  uint64 index = 2;
+  bytes command = 3;
+}
+
+message RequestVoteRequest {
+  uint64 term = 1;
+  int32 candidate_id = 2;
+  uint64 last_log_index = 3;
+  uint64 last_log_term = 4;
+}
+
+message RequestVoteResponse {
+  uint64 term = 1;
+  bool vote_granted = 2;
+}
+
+message AppendEntriesRequest {
+  uint64 term = 1;
+  int32 leader_id = 2;
+  uint64 prev_log_index = 3;
+  uint64 prev_log_term = 4;
+  repeated LogEntry entries = 5;
+  uint64 leader_commit = 6;
+}
+
+message AppendEntriesResponse {
+  uint64 term = 1;
+  bool success = 2;
+  uint64 match_index = 3;
+  uint64 conflict_term = 4;
+  uint64 conflict_index = 5;
+  uint64 conflict_len = 6;
+}
+
+message SnapshotChunk {
+  uint64 term = 1;
+  int32 leader_id = 2;
+  uint64 last_included_index = 3;
+  uint64 last_included_term = 4;
+  uint64 offset = 5;
+  bytes data = 6;
+  bool done = 7;
+}
+
+message InstallSnapshotResponse {
+  uint64 term = 1;
+}
