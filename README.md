@@ -1,41 +1,57 @@
 # TardiDB (`tardidb`)
 
-A fault-tolerant, sharded Key-Value database built from scratch in Go with a custom **LSM-Tree storage engine**, **Raft consensus**, **Multi-Raft sharding**, **Percolator MVCC 2PC transactions**, and a **Deterministic Simulation Testing (DST)** harness modeled after FoundationDB and TigerBeetle.
+[[https://github.com/swayamsaini/tardidb/actions/workflows/ci.yml/badge.svg]](https://github.com/swayamsaini/tardidb/actions/workflows/ci.yml)
+[https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white]
+[https://img.shields.io/badge/Dependencies-Zero-brightgreen]
+[https://img.shields.io/badge/Tests-23%2F23%20Passing-success]
+[https://img.shields.io/badge/License-MIT-blue]
 
-![Benchmark & Verification Results](docs/benchmarks.png)
+> *Named after the **Tardigrade** ("water bear") — nature's most resilient organism, engineered to survive extreme fault-injection chaos without losing a single byte.*
 
-## Measured Results (Local Windows 11 Run)
-- **Deterministic Simulation Swarm (`pkg/sim`)**: **2,694** linearizable client operations verified across **30** seeded 5-node chaos runs in **0.69s** (`0` Raft safety or linearizability violations).
-- **Leader-Kill Failover Benchmark (`cmd/kvbench`)**: **1,000 Puts** (`0` errors) with live `SIGKILL` on Leader Node 4 -> automatic failover to Node 1 (Term 2) at **2,879 ops/sec** (`p50=0.00ms`, `p99=8.14ms`, `p999=10.37ms`, `max=10.38ms`).
-- **Real TCP 3-Node Cluster (`pkg/server`)**: Live localhost election + TCP log replication passing in **0.40s**.
+A fault-tolerant, sharded distributed Key-Value database built from scratch in **pure Go** (zero external dependencies) with a custom **LSM-Tree storage engine**, **pure deterministic Raft consensus**, **Multi-Raft sharding**, **Percolator MVCC 2PC transactions**, a **Deterministic Simulation Testing (DST)** harness modeled after FoundationDB & TigerBeetle, and a formal **TLA+ specification**.
+
+[docs/benchmarks.png]
+
+## Measured Results (Windows 11 · AMD Ryzen 5 5600H)
+
+| Component | Workload | Measured Result |
+| :--- | :--- | :--- |
+| **DST Chaos Swarm** (`pkg/sim`) | 30 seeded 5-node runs (drops, dups, partitions, crashes) | **2,694 linearizable ops** in **0.69s** (0 violations) |
+| **Leader-Kill Failover** (`cmd/kvbench`) | 1,000 Puts + live `SIGKILL` on Leader Node 4 | **2,879 ops/sec**, **0 errors**, `p50=0.00ms`, `p99=8.14ms`, `p999=10.37ms` |
+| **Real TCP Cluster** (`pkg/server`) | 3-node localhost `net/rpc` + HTTP `/put` & `/get` | Election + replication passing in **0.40s** |
+| **WAL Persistence** (`pkg/storage`) | `file.Sync()` vs. buffered OS page cache | **2.83 ms/op** vs. **9.53 µs/op** (**297× `fsync` gap**) |
 
 ## Architecture
 
-- **`pkg/storage`**: Append-only binary WAL with CRC32 framing and torn-write crash recovery, sorted SkipList MemTable, immutable SSTables with SHA-256 double-hashed Bloom filters, and compaction.
-- **`pkg/raft`**: Pure, zero-OS-I/O Raft state machine (`Tick` / `Propose` / `RequestReadIndex` / `Snapshot` / `HandleMessage` -> `[]Action`) with fast backtracking, Figure 8 commit safety, `InstallSnapshot`, and `ReadIndex`.
-- **`pkg/kv`**: Deterministic KV state machine with `ClientID + SeqNum` idempotency deduplication persisted inside Raft snapshots.
-- **`pkg/sim`**: Single-threaded, 64-bit-seeded discrete-event simulator injecting packet drops, duplicates, reordering, asymmetric partitions, node crashes/reboots, and snapshots—paired with continuous Raft invariant assertions and a P-compositionality linearizability checker.
-- **`pkg/shard`**: Multi-Raft Shard Controller (`Join` / `Leave` / `Move` / `Query`) with minimal-movement rebalancing and online `Pushing -> Pull -> InstallShard -> DeleteShard` migration.
-- **`pkg/txn`**: Percolator-style MVCC 2PC coordinator for atomic cross-shard multi-key transactions with Snapshot Isolation.
-- **`pkg/server` & `proto/`**: Real TCP 3-node cluster server + HTTP API and gRPC Protocol Buffers contract (`proto/kvraft.proto`).
-- **`pkg/obs` & `cmd/kvbench`**: `p50`/`p99`/`p999` latency telemetry and open-loop leader-kill failover benchmark.
-- **`tla/`**: Formal TLA+ specification (`tla/RaftKV.tla` + `tla/RaftKV.cfg`) verifying `ElectionSafety`.
+```mermaid
+flowchart TB
+    CLI["cmd/kvdemo & cmd/kvbench"] --> SHARD["pkg/shard (Multi-Raft) & pkg/txn (Percolator 2PC)"]
+    SHARD --> SIM["pkg/sim (64-bit Seeded DST + Linearizability)"]
+    SHARD --> SRV["pkg/server (Real TCP net/rpc + HTTP)"]
+    SIM --> RAFT["pkg/raft + pkg/kv (Pure Deterministic Core + Dedup)"]
+    SRV --> RAFT
+    RAFT --> LSM["pkg/storage (CRC32 WAL + SkipList + SSTable + SHA-256 Bloom)"]
+    TLA["tla/RaftKV.tla (ElectionSafety)"] -.-> RAFT
+```
 
-## Running Tests & Benchmarks
+## Quickstart
 
 ```powershell
 # Run all 23 tests across all 7 packages
 go test -v ./...
 
-# Run storage WAL fsync vs. non-fsync benchmarks
-go test -bench="." ./pkg/storage
+# Launch live interactive 3-node TCP cluster (put / get / kill / status)
+go run ./cmd/kvdemo
 
-# Run the 5-node leader-kill failover benchmark
+# Run 5-node open-loop benchmark with live Leader SIGKILL
 go run ./cmd/kvbench
+
+# Measure WAL fsync vs. NoSync latency
+go test -bench="." ./pkg/storage
 ```
 
 ## Documentation
 
-- [`docs/architecture.md`](docs/architecture.md) — System design, invariants, and measured results.
-- [`docs/bugs-found-by-dst.md`](docs/bugs-found-by-dst.md) — Postmortems of real bugs caught during testing & simulation.
-- [`docs/blog-post.md`](docs/blog-post.md) — Engineering write-up of the project and design trade-offs.
+- [Architecture & Invariants](https://github.com/swayamsaini/tardidb/blob/main/docs/architecture.md)
+- [Bugs Found by DST (Postmortems)](https://github.com/swayamsaini/tardidb/blob/main/docs/bugs-found-by-dst.md)
+- [Engineering Blog Post](https://github.com/swayamsaini/tardidb/blob/main/docs/blog-post.md)
