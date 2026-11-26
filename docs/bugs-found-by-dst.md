@@ -1,14 +1,14 @@
-# Bugs Caught by Testing & Deterministic Simulation
+# Bugs Caught During Testing
 
-Maintaining a log of real bugs caught by tests and seeded simulation runs is one of the highest-signal engineering artifacts for systems interviews.
+Notes on real bugs that showed up while writing unit tests and running the simulation harness.
 
-## Bug #1: Bloom Filter Hash Correlation (`4.30%` False Positive Rate)
-- **Where:** `pkg/storage/bloom.go` (`doubleHash`)
-- **Symptom:** `TestBloomFilterAccuracy` failed with `86/2000 (4.30%)` false positives against a `<3%` target (~0.8% theoretical).
-- **Root Cause:** `doubleHash` paired `fnv.New64a()` and `fnv.New64()`. On sequential ASCII keys (`absent-key-0000`, `0001`, ...), FNV-1 and FNV-1a produce strongly correlated bit strides, causing systematic bit collisions.
-- **Fix:** Switched `doubleHash` to derive two independent 64-bit hashes from `sha256.Sum256(key)` with an odd stride (`| 1`) so `(h1 + i*h2) % m` covers the bitset uniformly.
+## 1. Bloom Filter Hash Correlation (`4.30%` False Positive Rate)
+- **File:** `pkg/storage/bloom.go` (`doubleHash`)
+- **What broke:** `TestBloomFilterAccuracy` failed with `86/2000` (`4.30%`) false positives against a `<3%` target.
+- **Why:** `doubleHash` used `fnv.New64a()` and `fnv.New64()`. On sequential ASCII keys (`absent-key-0000`, `0001`, ...), the two FNV variants produced correlated bit strides and collided repeatedly.
+- **Fix:** Switched `doubleHash` to derive two independent 64-bit hashes from `sha256.Sum256(key)` with an odd stride (`| 1`).
 
-## Bug #2: Reordered `AppendEntriesReply` Corrupting `matchIndex`
-- **Where:** `pkg/raft/raft.go` (`handleAppendEntriesReply`)
-- **Symptom:** Under packet reordering in `pkg/sim`, an `AppendEntriesReply` for an older RPC could arrive after newer entries were appended to the leader's log, risking premature `matchIndex` advancement.
-- **Fix:** Added explicit `MatchIndex = PrevLogIndex + len(Entries)` to `AppendEntriesReply` and enforced monotonic updates (`if reply.MatchIndex > n.matchIndex[from]`).
+## 2. Reordered `AppendEntriesReply` Updating `matchIndex`
+- **File:** `pkg/raft/raft.go` (`handleAppendEntriesReply`)
+- **What broke:** When `pkg/sim` reordered RPCs, an older `AppendEntriesReply` could arrive out of order after newer entries were already replicated.
+- **Fix:** Added explicit `MatchIndex = PrevLogIndex + len(Entries)` to `AppendEntriesReply` and only updated `n.matchIndex[from]` when `reply.MatchIndex > n.matchIndex[from]`.

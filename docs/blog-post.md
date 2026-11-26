@@ -1,40 +1,29 @@
-# Building a Fault-Tolerant Distributed KV Store with Raft and Deterministic Simulation Testing
+# Building TardiDB: Notes From Implementing Raft, an LSM-Tree, and DST in Go
 
-*By Swayam Saini*
+*Swayam Saini*
 
-Most backend portfolio projects wrap an existing database in HTTP endpoints. I wanted to understand what happens **underneath** databases like etcd, TiKV, CockroachDB, FoundationDB, and TigerBeetle—so I built a sharded, strongly consistent Key-Value store from scratch in Go, complete with its own LSM-tree storage engine, Raft consensus core, Multi-Raft sharding, Percolator-style 2PC transactions, and a single-threaded Deterministic Simulation Testing (DST) harness.
+I built TardiDB to understand how systems like etcd, TiKV, CockroachDB, and FoundationDB actually work below the API layer. Instead of wrapping an existing database, I wanted to write the storage engine, Raft consensus, sharding, transactions, and fault-injection tests from scratch using only the Go standard library.
 
-## 1. Starting From Disk: WAL, SkipList & LSM-Tree
+## 1. Storage First (`pkg/storage`)
 
-Before touching a network socket, every database has to survive a power cut on a single machine. I started with an append-only binary **Write-Ahead Log (WAL)** framing every `Put` and `Delete` with an IEEE `CRC32` checksum (`[CRC32 | TotalLen | OpType | KeyLen | Key | ValLen | Value]`). On startup, `WAL.Open()` distinguishes two very different failure modes:
+Before adding networking, a single node needs to survive a crash. Every `Put` and `Delete` is appended to a binary WAL framed with an IEEE `CRC32` checksum. On recovery, `WAL.Open()` separates two failure cases: a torn write at the tail of the file (truncate back to the last valid offset) versus a checksum mismatch in the middle of the file (return `ErrCorruptRecord`).
 
-- **Torn tail write** (power cut mid-append): truncate cleanly back to the last verified offset and keep running.
-- **Mid-file checksum mismatch** (disk bit-rot): surface `ErrCorruptRecord` immediately instead of silently dropping committed data.
+Writes go into an in-memory SkipList MemTable (with tombstones for deletes) and flush atomically (`tmp` + `fsync` + `rename`) into immutable SSTables paired with a Bloom filter. Compaction merges SSTables newest-to-oldest and drops tombstones.
 
-On top of the WAL, writes go into a sorted **SkipList MemTable** that uses **tombstones** for deletes. When the MemTable hits its byte threshold, it flushes atomically (`tmp` + `fsync` + `rename`) into an immutable **SSTable** with an in-memory binary-search index and a **Bloom filter**, then rotates the WAL. Periodic compaction merges SSTables newest-to-oldest and drops tombstones to reclaim disk space.
+## 2. Keeping Raft Pure (`pkg/raft`)
 
-## 2. Keeping Raft Pure & Deterministic
+The main design choice was keeping `pkg/raft` free of goroutines, `time.Sleep`, and `net`. The node exposes `Tick()`, `Propose()`, `RequestReadIndex()`, `Snapshot()`, and `HandleMessage()`, and returns a slice of `Action` values (`ActionSendMessage`, `ActionPersist`, `ActionApply`, `ActionApplySnapshot`, `ActionReadReady`).
 
-The single biggest architectural decision in `pkg/raft` was keeping the consensus core **100% pure**: zero goroutines, zero OS clocks, zero TCP sockets. Instead, the state machine exposes `Tick()`, `Propose()`, `RequestReadIndex()`, `Snapshot()`, and `HandleMessage()`, returning explicit `[]Action` side effects (`ActionSendMessage`, `ActionPersist`, `ActionApply`, `ActionApplySnapshot`, `ActionReadReady`).
+Because consensus logic has no OS dependencies, the exact same `raft.Node` runs both over real TCP (`pkg/server`) and inside a single-threaded simulator (`pkg/sim`).
 
-That single design choice let the **exact same Raft implementation** run in two completely different worlds:
-1. Over real OS TCP sockets (`pkg/server`, passing a live 3-node cluster election + replication test in `0.40s`).
-2. Inside a single-threaded, 64-bit-seeded **Deterministic Simulator** (`pkg/sim`).
+## 3. Simulation Testing (`pkg/sim`)
 
-## 3. Deterministic Simulation Testing & Bugs Caught
+Modeled after FoundationDB and TigerBeetle's VOPR, `pkg/sim` runs 5 Raft+KV nodes inside a min-heap event loop driven by one 64-bit PRNG seed. Every run injects packet drops, duplicates, reordering, asymmetric partitions, node crashes, and snapshots, while checking Election Safety and State Machine Safety after every event. Client history is then checked with a key-partitioned (P-compositionality) linearizability checker.
 
-Inspired by FoundationDB and TigerBeetle's VOPR, `pkg/sim` drives 5 real Raft+KV nodes using a min-heap discrete-event queue controlled by one 64-bit PRNG seed. It injects packet drops, duplicates, reordering, asymmetric partitions, node crashes/reboots, and aggressive snapshots—asserting Raft's **Election Safety**, **Log Matching**, and **State Machine Safety** after every single event, then verifying the entire client history with a Porcupine-style **P-compositionality linearizability checker**.
+Across 30 seeded chaos runs on my laptop, the simulator verified 2,694 operations in 0.69s with zero violations.
 
-Across **30 seeded 5-node chaos simulations**, the simulator verified **2,694 linearizable client operations in 0.69 seconds** with zero safety violations. Along the way, testing caught two concrete systems bugs:
-- **Bloom Filter Hash Correlation (`4.30%` FP rate):** Pairing FNV-1 and FNV-1a on sequential ASCII keys caused correlated bit patterns; switching `doubleHash` to independent 64-bit SHA-256 slices dropped false positives to the expected ~0.8%.
-- **Reordered `AppendEntriesReply` Safety:** Carrying explicit `MatchIndex` on every reply and updating `matchIndex[peer]` monotonically prevented delayed RPC responses from corrupting leader commit tracking.
+## 4. Sharding, 2PC, and Failover Numbers
 
-## 4. Scaling Out & Measured Failover Performance
+`pkg/shard` adds a shard controller with minimal-movement rebalancing and 4-state live migration (copying both KV entries and client deduplication state). `pkg/txn` implements Percolator-style MVCC 2PC across shards.
 
-To move past the single-Raft throughput ceiling, `pkg/shard` adds a **Shard Controller** with minimal-movement rebalancing (`Join`, `Leave`, `Move`, `Query`) and online shard migration (`StatusPushing -> ExportShard -> InstallShard -> DeleteShard`) that transfers both KV entries and client deduplication state. For atomic multi-key writes across shards, `pkg/txn` implements **Percolator-style MVCC 2PC** with Snapshot Isolation.
-
-On a local Windows 11 laptop, `cmd/kvbench` ran **1,000 Puts** against a 5-node cluster with a mid-run `SIGKILL` injected on Leader Node 4 (triggering automatic failover to Node 1 in Term 2):
-- **Throughput:** `2,879 ops/sec` (`0` errors)
-- **Tail Latency:** `p50 = 0.00ms`, `p99 = 8.14ms`, `p999 = 10.37ms`, `max = 10.38ms`
-
-Explore the full source, TLA+ specification (`tla/RaftKV.tla`), and tests in [the repository](https://github.com/swayamsaini/tardidb).
+Running `cmd/kvbench` on Windows 11 (Ryzen 5 5600H) for 1,000 Puts with a mid-run `SIGKILL` on Leader Node 4 (failing over to Node 1 in Term 2) measured 2,879 ops/sec with 0 errors (`p50=0.00ms`, `p99=8.14ms`, `p999=10.37ms`).
