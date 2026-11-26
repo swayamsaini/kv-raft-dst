@@ -1,4 +1,4 @@
-﻿# Building a Fault-Tolerant Distributed KV Store with Raft and Deterministic Simulation Testing
+# Building a Fault-Tolerant Distributed KV Store with Raft and Deterministic Simulation Testing
 
 *By Swayam Saini*
 
