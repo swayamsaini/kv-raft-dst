@@ -1,3 +1,3 @@
-module github.com/swayamsaini/kv-raft-dst
+﻿module github.com/swayamsaini/tardidb
 
 go 1.22

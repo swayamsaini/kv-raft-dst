@@ -1,4 +1,4 @@
-# Architecture: kv-raft-dst
+﻿# Architecture: TardiDB
 
 ## System Layers
 1. **Storage Engine (`pkg/storage`)**: Append-only binary WAL (`CRC32 | TotalLen | Op | Key | Val`) with torn-tail truncation and mid-file bit-flip detection, sorted SkipList MemTable with tombstones, immutable SSTables with SHA-256 double-hashed Bloom filters (~0.8% FP), and full SSTable compaction.

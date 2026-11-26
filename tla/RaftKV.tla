@@ -1,4 +1,4 @@
------------------------------ MODULE RaftKV -----------------------------
+﻿----------------------------- MODULE RaftKV -----------------------------
 EXTENDS Naturals, FiniteSets, Sequences
 
 CONSTANTS Server, MaxTerm, Nil

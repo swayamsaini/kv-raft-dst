@@ -1,4 +1,4 @@
-package kv
+﻿package kv
 
 import (
 	"bytes"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/swayamsaini/kv-raft-dst/pkg/raft"
+	"github.com/swayamsaini/tardidb/pkg/raft"
 )
 
 // OpKind identifies a client KV operation.

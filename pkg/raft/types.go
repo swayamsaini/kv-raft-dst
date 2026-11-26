@@ -1,4 +1,4 @@
-package raft
+﻿package raft
 
 // Role represents a Raft node's current state in the cluster.
 type Role int

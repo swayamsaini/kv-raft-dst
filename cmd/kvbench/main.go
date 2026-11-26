@@ -1,19 +1,19 @@
-package main
+﻿package main
 
 import (
 	"fmt"
 	"math/rand"
 	"time"
 
-	"github.com/swayamsaini/kv-raft-dst/pkg/kv"
-	"github.com/swayamsaini/kv-raft-dst/pkg/obs"
-	"github.com/swayamsaini/kv-raft-dst/pkg/raft"
+	"github.com/swayamsaini/tardidb/pkg/kv"
+	"github.com/swayamsaini/tardidb/pkg/obs"
+	"github.com/swayamsaini/tardidb/pkg/raft"
 )
 
 // kvbench runs an open-loop workload against a 5-node Raft+KV cluster,
 // kills the active leader mid-run, and publishes p50/p99/p999 latency & throughput.
 func main() {
-	fmt.Println("=== kv-raft-dst Open-Loop Benchmark + Leader-Kill Failover ===")
+	fmt.Println("=== TardiDB Open-Loop Benchmark + Leader-Kill Failover ===")
 
 	peers := []int{0, 1, 2, 3, 4}
 	nodes := make(map[int]*raft.Node)

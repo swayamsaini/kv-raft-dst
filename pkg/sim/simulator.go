@@ -1,12 +1,12 @@
-package sim
+﻿package sim
 
 import (
 	"container/heap"
 	"fmt"
 	"math/rand"
 
-	"github.com/swayamsaini/kv-raft-dst/pkg/kv"
-	"github.com/swayamsaini/kv-raft-dst/pkg/raft"
+	"github.com/swayamsaini/tardidb/pkg/kv"
+	"github.com/swayamsaini/tardidb/pkg/raft"
 )
 
 // FaultConfig controls the chaos profile for a single deterministic simulation run.

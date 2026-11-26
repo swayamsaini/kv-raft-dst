@@ -1,4 +1,4 @@
-# Building a Fault-Tolerant Distributed KV Store with Raft and Deterministic Simulation Testing
+﻿# Building a Fault-Tolerant Distributed KV Store with Raft and Deterministic Simulation Testing
 
 *By Swayam Saini*
 
@@ -37,4 +37,4 @@ On a local Windows 11 laptop, `cmd/kvbench` ran **1,000 Puts** against a 5-node 
 - **Throughput:** `2,879 ops/sec` (`0` errors)
 - **Tail Latency:** `p50 = 0.00ms`, `p99 = 8.14ms`, `p999 = 10.37ms`, `max = 10.38ms`
 
-Explore the full source, TLA+ specification (`tla/RaftKV.tla`), and tests in [the repository](https://github.com/swayamsaini/kv-raft-dst).
+Explore the full source, TLA+ specification (`tla/RaftKV.tla`), and tests in [the repository](https://github.com/swayamsaini/tardidb).

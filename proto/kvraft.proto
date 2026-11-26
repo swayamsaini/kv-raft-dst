@@ -1,8 +1,8 @@
-syntax = "proto3";
+﻿syntax = "proto3";
 
 package kvraft.v1;
 
-option go_package = "github.com/swayamsaini/kv-raft-dst/proto;kvraftpb";
+option go_package = "github.com/swayamsaini/tardidb/proto;kvraftpb";
 
 // Client-facing Key-Value API
 service KVService {

@@ -1,4 +1,4 @@
-package server
+﻿package server
 
 import (
 	"encoding/json"
@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/swayamsaini/kv-raft-dst/pkg/kv"
-	"github.com/swayamsaini/kv-raft-dst/pkg/raft"
+	"github.com/swayamsaini/tardidb/pkg/kv"
+	"github.com/swayamsaini/tardidb/pkg/raft"
 )
 
 // RaftRPC exposes a Raft node's pure HandleMessage over real TCP sockets (net/rpc).

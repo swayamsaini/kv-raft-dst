@@ -1,4 +1,4 @@
-# Bugs Caught by Testing & Deterministic Simulation
+﻿# Bugs Caught by Testing & Deterministic Simulation
 
 Maintaining a log of real bugs caught by tests and seeded simulation runs is one of the highest-signal engineering artifacts for systems interviews.
 

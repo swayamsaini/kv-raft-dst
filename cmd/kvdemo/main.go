@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"bufio"
@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/swayamsaini/kv-raft-dst/pkg/server"
+	"github.com/swayamsaini/tardidb/pkg/server"
 )
 
 func main() {
 	fmt.Println("==========================================================")
-	fmt.Println("  kv-raft-dst: Live Interactive 3-Node TCP Raft Cluster")
+	fmt.Println("  TardiDB: Live Interactive 3-Node TCP Raft Cluster")
 	fmt.Println("==========================================================")
 
 	peerIDs := []int{0, 1, 2}

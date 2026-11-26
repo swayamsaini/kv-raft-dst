@@ -1,4 +1,4 @@
-# kv-raft-dst
+﻿# TardiDB (`tardidb`)
 
 A fault-tolerant, sharded Key-Value database built from scratch in Go with a custom **LSM-Tree storage engine**, **Raft consensus**, **Multi-Raft sharding**, **Percolator MVCC 2PC transactions**, and a **Deterministic Simulation Testing (DST)** harness modeled after FoundationDB and TigerBeetle.
 
